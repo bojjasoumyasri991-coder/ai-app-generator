@@ -1,171 +1,187 @@
 import streamlit as st
-import json
-from main import run_pipeline
 
-st.set_page_config(page_title="AI App Generator", layout="wide")
+st.set_page_config(page_title="AI System Generator", layout="wide")
 
-# -------------------------------
-# SESSION STATE SETUP
-# -------------------------------
-if "mode" not in st.session_state:
-    st.session_state.mode = "builder"
+# -------------------------
+# CUSTOM CSS
+# -------------------------
+st.markdown("""
+<style>
+.main-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 85vh;
+}
 
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
+.title {
+    font-size: 48px;
+    font-weight: 700;
+    text-align: center;
+}
 
-if "role" not in st.session_state:
-    st.session_state.role = None
+.subtitle {
+    font-size: 18px;
+    color: #666;
+    margin-bottom: 30px;
+    text-align: center;
+}
 
-if "output" not in st.session_state:
-    st.session_state.output = None
+.input-container {
+    width: 60%;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# -------------------------
+# PIPELINE LOGIC
+# -------------------------
+
+def parse_prompt(prompt):
+    prompt = prompt.lower()
+    return {
+        "auth": "login" in prompt,
+        "contacts": "contact" in prompt,
+        "dashboard": "dashboard" in prompt,
+        "payments": "payment" in prompt or "premium" in prompt,
+        "roles": "admin" in prompt or "role" in prompt,
+        "analytics": "analytics" in prompt
+    }
 
 
-# -------------------------------
-# BUILDER MODE
-# -------------------------------
-if st.session_state.mode == "builder":
+def build_system(features):
+    system = {
+        "UI Schema": {"pages": [], "components": []},
+        "API Schema": {"endpoints": []},
+        "Database Schema": {"tables": []},
+        "Auth": {},
+        "Business Logic": []
+    }
 
-    st.title("🚀 AI App Generator")
-    st.write("Enter your idea and generate structured app configuration")
+    # UI
+    if features["auth"]:
+        system["UI Schema"]["pages"].append("Login Page")
+    if features["dashboard"]:
+        system["UI Schema"]["pages"].append("Dashboard Page")
+    if features["contacts"]:
+        system["UI Schema"]["pages"].append("Contacts Page")
+    if features["payments"]:
+        system["UI Schema"]["pages"].append("Subscription Page")
+    if features["analytics"]:
+        system["UI Schema"]["pages"].append("Admin Analytics Dashboard")
 
-    user_input = st.text_area("Describe your app")
+    system["UI Schema"]["components"] = ["Navbar", "Sidebar", "Forms", "Tables"]
 
-    if st.button("Generate App"):
+    # API
+    if features["auth"]:
+        system["API Schema"]["endpoints"].append({"route": "/auth/login", "method": "POST"})
 
-        if not user_input:
-            st.warning("Please enter a prompt")
-        else:
-            with st.spinner("Generating..."):
-                output = run_pipeline(user_input)
-                st.session_state.output = output
+    if features["contacts"]:
+        system["API Schema"]["endpoints"].extend([
+            {"route": "/contacts", "method": "GET"},
+            {"route": "/contacts", "method": "POST"},
+            {"route": "/contacts/{id}", "method": "PUT"},
+            {"route": "/contacts/{id}", "method": "DELETE"}
+        ])
 
-    # Show output
-    if st.session_state.output:
-
-        st.subheader("📦 Generated Configuration")
-        st.json(st.session_state.output)
-
-        # Download button
-        st.download_button(
-            label="Download JSON",
-            data=json.dumps(st.session_state.output, indent=2),
-            file_name="app_config.json",
-            mime="application/json"
+    if features["payments"]:
+        system["API Schema"]["endpoints"].append(
+            {"route": "/payment/checkout", "method": "POST"}
         )
 
-        st.divider()
+    # Database
+    if features["auth"]:
+        system["Database Schema"]["tables"].append({
+            "name": "Users",
+            "fields": ["id", "email", "password", "role"]
+        })
 
-        # -------------------------------
-        # UI PREVIEW
-        # -------------------------------
-        st.subheader("🖥 UI Preview")
+    if features["contacts"]:
+        system["Database Schema"]["tables"].append({
+            "name": "Contacts",
+            "fields": ["id", "name", "email", "phone", "user_id"]
+        })
 
-        pages = st.session_state.output.get("ui", {}).get("pages", [])
+    if features["payments"]:
+        system["Database Schema"]["tables"].append({
+            "name": "Subscriptions",
+            "fields": ["id", "user_id", "plan", "status", "payment_id"]
+        })
 
-        page_names = [p["name"] for p in pages]
+    # Auth
+    if features["roles"]:
+        system["Auth"] = {
+            "roles": ["Admin", "User"],
+            "permissions": {
+                "Admin": "Full access + analytics",
+                "User": "Limited access"
+            }
+        }
 
-        selected_page = st.radio("Navigate", page_names, horizontal=True)
+    # Business Logic
+    if features["payments"]:
+        system["Business Logic"].append("Only premium users can access advanced features")
 
-        for page in pages:
-            if page["name"] == selected_page:
+    if features["roles"]:
+        system["Business Logic"].append("Admin can view analytics dashboard")
 
-                st.header(f"{page['name'].capitalize()} Page")
-
-                if page["name"] == "login":
-                    st.text_input("Email")
-                    st.text_input("Password", type="password")
-                    st.button("Login")
-
-                elif page["name"] == "contacts":
-                    st.write("📋 Contacts Table")
-                    st.button("Add Contact")
-
-                elif page["name"] == "dashboard":
-                    st.write("📊 Charts & Analytics")
-
-        st.divider()
-
-        # 🚀 LAUNCH APP BUTTON
-        if st.button("🚀 Launch App"):
-            st.session_state.mode = "app"
-            st.rerun()
+    return system
 
 
-# -------------------------------
-# APP MODE (REAL FLOW SIMULATION)
-# -------------------------------
-elif st.session_state.mode == "app":
+def validate_system(system):
+    if "Login Page" in system["UI Schema"]["pages"]:
+        tables = [t["name"] for t in system["Database Schema"]["tables"]]
+        if "Users" not in tables:
+            system["Database Schema"]["tables"].append({
+                "name": "Users",
+                "fields": ["id", "email", "password"]
+            })
+    return system
 
-    st.title("🖥 App Simulation")
 
-    # -------------------------------
-    # LOGIN SCREEN
-    # -------------------------------
-    if not st.session_state.logged_in:
+# -------------------------
+# UI
+# -------------------------
 
-        st.subheader("🔐 Login")
+st.markdown('<div class="main-container">', unsafe_allow_html=True)
 
-        email = st.text_input("Email")
-        password = st.text_input("Password", type="password")
+st.markdown('<div class="title">🚀 AI System Generator</div>', unsafe_allow_html=True)
 
-        if st.button("Login"):
+# ✅ FIXED SUBTITLE POSITION
+st.markdown('<div class="subtitle">Turn your idea into full system architecture</div>', unsafe_allow_html=True)
 
-            if email and password:
+col1, col2, col3 = st.columns([1,2,1])
 
-                # SIMPLE ROLE LOGIC
-                if "admin" in email.lower():
-                    st.session_state.role = "Admin"
-                else:
-                    st.session_state.role = "User"
+with col2:
+    user_input = st.text_area(
+        "",
+        placeholder="Build a CRM with login, contacts, dashboard, role-based access, premium plan with payments. Admins can see analytics.",
+        height=120
+    )
 
-                st.session_state.logged_in = True
-                st.success(f"Logged in as {st.session_state.role}")
-                st.rerun()
-            else:
-                st.error("Enter email and password")
+    generate = st.button("Generate System ➤", use_container_width=True)
 
-    # -------------------------------
-    # AFTER LOGIN
-    # -------------------------------
+st.markdown('</div>', unsafe_allow_html=True)
+
+# -------------------------
+# OUTPUT (FIXED)
+# -------------------------
+
+if "result" not in st.session_state:
+    st.session_state.result = None
+
+if generate:
+    if user_input.strip() == "":
+        st.warning("Please enter a prompt")
     else:
+        features = parse_prompt(user_input)
+        system = build_system(features)
+        system = validate_system(system)
+        st.session_state.result = system
 
-        st.success(f"Welcome {st.session_state.role}")
+if st.session_state.result:
+    st.success("System generated successfully ✔")
 
-        pages = st.session_state.output.get("ui", {}).get("pages", [])
-
-        page_names = [p["name"] for p in pages]
-
-        selected_page = st.sidebar.radio("Navigate", page_names)
-
-        # -------------------------------
-        # PAGE RENDERING
-        # -------------------------------
-        for page in pages:
-
-            if page["name"] == selected_page:
-
-                st.header(page["name"].capitalize())
-
-                if page["name"] == "contacts":
-                    st.write("📋 Contacts Table")
-                    st.button("Add Contact")
-
-                elif page["name"] == "dashboard":
-
-                    # 🔒 ADMIN CHECK
-                    if st.session_state.role != "Admin":
-                        st.error("⛔ Access Denied: Admin only")
-                    else:
-                        st.write("📊 Admin Analytics Dashboard")
-
-                elif page["name"] == "login":
-                    st.info("Already logged in")
-
-        st.divider()
-
-        # LOGOUT
-        if st.button("Logout"):
-            st.session_state.logged_in = False
-            st.session_state.role = None
-            st.session_state.mode = "builder"
-            st.rerun()
+    st.markdown("## 📦 Generated System Configuration")
+    st.json(st.session_state.result)
